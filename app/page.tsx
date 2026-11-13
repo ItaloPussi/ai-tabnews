@@ -1,12 +1,13 @@
 import Confetti from "./components/confetti";
 
-export const dynamic = "force-dynamic";
+// The community total does not need a fresh upstream request for every visit.
+export const revalidate = 300;
 
 async function getPublishedContentCount() {
   try {
     const response = await fetch(
       "https://www.tabnews.com.br/api/v1/contents?strategy=new&page=1&per_page=1",
-      { cache: "no-store" },
+      { next: { revalidate: 300 }, signal: AbortSignal.timeout(3000) },
     );
 
     if (!response.ok) return null;

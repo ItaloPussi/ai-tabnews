@@ -1,32 +1,55 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
-import ConfettiEffect from "react-confetti";
+
+const ConfettiAnimation = dynamic(() => import("./confetti-animation"), {
+  ssr: false,
+});
 
 export default function Confetti() {
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [ready, setReady] = useState(false);
+  const [complete, setComplete] = useState(false);
 
   useEffect(() => {
-    const updateDimensions = () =>
-      setDimensions({ width: window.innerWidth, height: window.innerHeight });
+    if (complete) return;
 
-    updateDimensions();
-    window.addEventListener("resize", updateDimensions);
-    return () => window.removeEventListener("resize", updateDimensions);
-  }, []);
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let cancelPending = () => {};
 
-  if (!dimensions.width) return null;
+    const schedule = () => {
+      cancelPending();
+      if (motion.matches) {
+        setReady(false);
+        return;
+      }
 
-  return (
-    <ConfettiEffect
-      width={dimensions.width}
-      height={dimensions.height}
-      numberOfPieces={180}
-      recycle={false}
-      gravity={0.16}
-      tweenDuration={9000}
-      colors={["#a4f4c5", "#7ce7b1", "#f2cc8f", "#91a7ff", "#ffffff"]}
-      style={{ position: "fixed", inset: 0, zIndex: 5, pointerEvents: "none" }}
-    />
-  );
+      // Keep the decorative download and animation out of the initial load.
+      if ("requestIdleCallback" in window) {
+        const id = window.requestIdleCallback(() => setReady(true), { timeout: 1000 });
+        cancelPending = () => window.cancelIdleCallback(id);
+      } else {
+        const id = setTimeout(() => setReady(true), 200);
+        cancelPending = () => clearTimeout(id);
+      }
+    };
+
+    const onMotionChange = () => {
+      if (document.readyState === "complete") schedule();
+    };
+
+    if (document.readyState === "complete") schedule();
+    else window.addEventListener("load", schedule, { once: true });
+    motion.addEventListener("change", onMotionChange);
+
+    return () => {
+      cancelPending();
+      window.removeEventListener("load", schedule);
+      motion.removeEventListener("change", onMotionChange);
+    };
+  }, [complete]);
+
+  if (!ready || complete) return null;
+
+  return <ConfettiAnimation onComplete={() => setComplete(true)} />;
 }
